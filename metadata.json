@@ -1,0 +1,6 @@
+{
+  "name": "LuminaLeads AI",
+  "description": "Next-gen AI-powered lead generation and web scraping platform with immersive mapping and futuristic UI.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["AI Lead Generation", "Web Scraping", "Interactive Maps"]
+}
