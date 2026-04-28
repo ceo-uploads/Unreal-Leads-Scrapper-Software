@@ -59,7 +59,15 @@ export async function onRequest(context) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1 }
+        // --- ADDED TOOLS FOR GROUNDING ---
+        tools: [{
+          google_search: {} 
+        }],
+        // --- UPDATED CONFIGURATION ---
+        generationConfig: { 
+          temperature: 0.1,
+          response_mime_type: "application/json" // Ensures the AI responds with clean JSON
+        }
       })
     });
 
@@ -72,6 +80,7 @@ export async function onRequest(context) {
         });
     }
 
+    // Extraction logic remains the same to handle the response format
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
     const jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
     const cleanedContent = jsonMatch ? jsonMatch[0] : content.trim();
