@@ -1,6 +1,3 @@
-import { db } from '../lib/firebase';
-import { ref, push, set } from 'firebase/database';
-
 export interface ScrapedLead {
   name: string;
   address: string;
@@ -20,14 +17,30 @@ export async function extractLeads(query: string, source: string = "Global", con
     const response = await fetch("/api/grounded-extract", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
       },
       body: JSON.stringify({ query, source, context })
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.details || "Failed to reach extraction core");
+      const status = response.status;
+      const errText = await response.text().catch(() => "Unknown error");
+      console.error(`[API-ERROR] Status: ${status}, Body: ${errText.substring(0, 200)}`);
+      
+      if (status === 405) {
+        throw new Error("Cloudflare Configuration Error (405): The API endpoint exists but rejects the request method. Ensure your Functions are correctly deployed.");
+      }
+      if (status === 404) {
+         throw new Error("Cloudflare Configuration Error (404): The API endpoint path /api/grounded-extract was not found. Ensure the /functions folder was included in your upload.");
+      }
+      
+      try {
+        const errData = JSON.parse(errText);
+        throw new Error(errData.details || errData.error || "Failed to reach extraction core");
+      } catch (e) {
+        throw new Error(`Server returned ${status}: ${errText.substring(0, 100)}`);
+      }
     }
 
     const leads: ScrapedLead[] = await response.json();
@@ -72,26 +85,6 @@ export async function extractLeads(query: string, source: string = "Global", con
       // If we filtered EVERYTHING out, it might be a naming convention mismatch. 
       // Return original leads but log a warning.
       return leads; 
-    }
-
-    // Sync to Firebase Realtime Database
-    try {
-      const sanitizedQuery = query.replace(/[^a-zA-Z0-9]/g, '_');
-      const leadsRef = ref(db, 'leads/' + sanitizedQuery);
-      
-      for (const lead of filteredLeads) {
-        const newLeadRef = push(leadsRef);
-        await set(newLeadRef, {
-          ...lead,
-          syncedAt: new Date().toISOString(),
-          searchQuery: query,
-          searchSource: source,
-          verified: true
-        });
-      }
-      console.log(`[FIREBASE] Synced ${filteredLeads.length} verified leads to Realtime Database.`);
-    } catch (firebaseErr) {
-      console.warn("[FIREBASE_SYNC_WARNING] Could not sync to cloud:", firebaseErr);
     }
 
     return filteredLeads;
